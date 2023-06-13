@@ -1,0 +1,287 @@
+REPORT zfi_sost_list.
+
+*--------------------------------------------------------------------*
+* Produces a list similar to that output by txn SOST.
+*--------------------------------------------------------------------*
+
+DATA:
+  entry_date        TYPE sydatum,
+  gt_send_processes TYPE soxsp2tab,                  "main table
+  gt_send_proc2     TYPE soxsp2tab,
+  gs_send_proc      LIKE LINE OF gt_send_processes,
+  gt_fldcat         TYPE slis_t_fieldcat_alv,
+  gs_fldcat         LIKE LINE OF gt_fldcat,
+  gs_layout         TYPE slis_layout_alv,
+  gv_title          TYPE lvc_title,
+  gv_rows           TYPE i.
+
+SELECT-OPTIONS:
+  s_sndat FOR entry_date DEFAULT sy-datum OBLIGATORY,
+  s_time  FOR gs_send_proc-stat_time,
+
+  s_msgno FOR gs_send_proc-msgno,
+  s_titl  FOR gs_send_proc-titel,
+  s_sndr  FOR gs_send_proc-sender,
+  s_recip FOR gs_send_proc-address,
+  s_user  FOR gs_send_proc-usernam.
+
+START-OF-SELECTION.
+*==================
+
+* Retrieve the data
+  PERFORM sndrec_select.
+
+* create the alv field catalog
+  PERFORM create_fieldcatalog
+         USING     gt_send_proc2
+         CHANGING  gt_fldcat.
+
+  gs_layout-colwidth_optimize = abap_true.
+  gs_layout-zebra             = abap_true.
+  gv_rows =  lines( gt_send_proc2 ).
+  gv_title = 'Rows: '.
+  WRITE gv_rows TO gv_title+35.
+
+* call the ALV grid
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      it_fieldcat             = gt_fldcat
+      i_callback_program      = sy-repid
+      i_callback_user_command = 'USER_COMMAND'
+      i_grid_title            = gv_title
+      i_save                  = 'A'
+      is_layout               = gs_layout
+    TABLES
+      t_outtab                = gt_send_proc2
+    EXCEPTIONS
+      program_error           = 1
+      OTHERS                  = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*& Form  create_fieldcatalog
+*&---------------------------------------------------------------------*
+* Create a field catalogue from any internal table
+*----------------------------------------------------------------------*
+*      -->PT_TABLE     Internal table
+*      -->PT_FIELDCAT  Field Catalogue
+*----------------------------------------------------------------------*
+FORM  create_fieldcatalog
+       USING     pt_table     TYPE ANY TABLE
+       CHANGING  pt_fieldcat  TYPE slis_t_fieldcat_alv.
+
+  DATA:
+    lr_tabdescr TYPE REF TO cl_abap_structdescr,
+    lr_data     TYPE REF TO data,
+    lt_dfies    TYPE ddfields,
+    ls_dfies    TYPE dfies,
+    ls_fieldcat TYPE slis_fieldcat_alv,
+    lv_col      TYPE i.
+
+  CLEAR pt_fieldcat.
+
+  CREATE DATA lr_data LIKE LINE OF pt_table.
+
+  lr_tabdescr ?= cl_abap_structdescr=>describe_by_data_ref( lr_data ).
+  lt_dfies = cl_salv_data_descr=>read_structdescr( lr_tabdescr ).
+
+  lv_col = 10.
+
+  LOOP AT lt_dfies INTO ls_dfies.
+
+    CLEAR ls_fieldcat.
+
+    MOVE-CORRESPONDING ls_dfies TO ls_fieldcat.
+    ls_fieldcat-cfieldname = ls_dfies-precfield.
+
+    ADD 1 TO lv_col.
+    ls_fieldcat-col_pos = lv_col.
+    ls_fieldcat-no_out = abap_true.  "Default Hide
+
+    IF ls_fieldcat-fieldname = 'ICON'.
+      ls_fieldcat-reptext_ddic = 'Status'.
+      ls_fieldcat-seltext_l    = 'Status'.
+      ls_fieldcat-seltext_s    = 'Status'.
+      ls_fieldcat-seltext_m    = 'Status'.
+      ls_fieldcat-icon = abap_true.
+      ls_fieldcat-col_pos = 1.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'SNDART_L'.
+      ls_fieldcat-seltext_m     =
+      ls_fieldcat-seltext_l     =
+      ls_fieldcat-reptext_ddic  = 'Send Method'.
+      ls_fieldcat-seltext_s(10) = 'Send Meth'.
+      ls_fieldcat-col_pos = 2.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'TITEL'.
+      ls_fieldcat-col_pos = 3.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'SENDER'.
+      ls_fieldcat-seltext_m     =
+      ls_fieldcat-seltext_l     =
+      ls_fieldcat-reptext_ddic  = 'Sender'.
+      ls_fieldcat-seltext_s(10) = 'Sender'.
+      ls_fieldcat-col_pos = 4.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'ADDRESS'.
+      ls_fieldcat-seltext_m     =
+      ls_fieldcat-seltext_l     =
+      ls_fieldcat-reptext_ddic  = 'Recipient'.
+      ls_fieldcat-seltext_s(10) = 'Recipient'.
+      ls_fieldcat-col_pos = 5.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'STAT_DATE'.
+      ls_fieldcat-seltext_m     =
+      ls_fieldcat-seltext_l     =
+      ls_fieldcat-reptext_ddic  = 'Send Date'.
+      ls_fieldcat-seltext_s(10) = 'Send Date'.
+      ls_fieldcat-col_pos = 6.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'STAT_TIME'.
+      ls_fieldcat-seltext_m     =
+      ls_fieldcat-seltext_l     =
+      ls_fieldcat-reptext_ddic  = 'Send Time'.
+      ls_fieldcat-seltext_s(10) = 'Send Time'.
+      ls_fieldcat-col_pos = 7.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'USERNAM'.
+      ls_fieldcat-seltext_m     =
+      ls_fieldcat-seltext_l     =
+      ls_fieldcat-reptext_ddic  = 'User Name'.
+      ls_fieldcat-seltext_s(10) = 'User Name'.
+      ls_fieldcat-col_pos = 8.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'MSGNO'.
+      CLEAR ls_fieldcat-no_out.
+      ls_fieldcat-col_pos = 9.
+    ENDIF.
+
+    IF ls_fieldcat-fieldname = 'MSGTXT'.
+      ls_fieldcat-seltext_m     =
+      ls_fieldcat-seltext_l     =
+      ls_fieldcat-reptext_ddic  = 'Description'.
+      ls_fieldcat-seltext_s(10) = 'Descriptn'.
+      ls_fieldcat-col_pos = 10.
+      CLEAR ls_fieldcat-no_out.
+    ENDIF.
+
+    APPEND ls_fieldcat TO pt_fieldcat.
+
+  ENDLOOP.
+
+ENDFORM.                    "create_fieldcatalog
+
+*&---------------------------------------------------------------------*
+*&      Form  sndrec_select                                       917040
+*&---------------------------------------------------------------------*
+FORM sndrec_select.
+
+  DATA:
+    prog_text1(50),
+    all_waiting,
+    soststatus     TYPE soststatus,
+    g_stanot,
+    g_descr(50),
+    g_maxsel       TYPE tbmaxsel VALUE 500,
+    g_sel_sender   TYPE RANGE OF xubname WITH HEADER LINE,
+    g_time         TYPE RANGE OF soos-sdtim WITH HEADER LINE,
+    g_adrtp        TYPE sx_addrtyp.
+
+  CLEAR gt_send_processes.
+
+  soststatus-wait = 'X'.
+  soststatus-transit = 'X'.
+  soststatus-ok = 'X'.
+  soststatus-error = 'X'.
+  soststatus-future = 'X'.
+  soststatus-retry = 'X'.
+  soststatus-direct = 'X'.
+  g_stanot = 'X'.
+
+  CALL FUNCTION 'SX_SNDREC_SELECT'
+    EXPORTING
+      snd_art       = g_adrtp
+      snd_date      = s_sndat[]
+      snd_time      = s_time[]
+      status        = soststatus
+      notifications = g_stanot
+      sender        = g_sel_sender[]
+      maxsel        = g_maxsel
+      all_waiting   = all_waiting
+      description   = g_descr
+    IMPORTING
+      sndrecs       = gt_send_processes
+    EXCEPTIONS
+      OTHERS        = 0.
+
+* ---- insert status texts ---------------------------------------------
+  PERFORM create_icons IN PROGRAM saplsbcs_out.
+  PERFORM get_sendart_longtexts IN PROGRAM saplsbcs_out.
+  PERFORM insert_text IN PROGRAM saplsbcs_out USING gt_send_processes.
+  SORT gt_send_processes DESCENDING BY stat_date stat_time.
+  PERFORM get_sender_and_receiver IN PROGRAM saplsbcs_out USING gt_send_processes.
+
+  LOOP AT gt_send_processes INTO gs_send_proc.
+
+    CHECK gs_send_proc-titel   IN s_titl  AND
+          gs_send_proc-sender  IN s_sndr  AND
+          gs_send_proc-address IN s_recip AND
+          gs_send_proc-msgno   IN s_msgno AND
+          gs_send_proc-usernam IN s_user.
+
+    APPEND gs_send_proc TO gt_send_proc2.
+  ENDLOOP.
+
+  FREE gt_send_processes.
+
+ENDFORM.                                             " sndrec_select
+
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND
+*&---------------------------------------------------------------------*
+FORM user_command USING r_ucomm     LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+
+  DATA lt_sndrecs TYPE soxsp2tab.
+  DATA lx_bcs TYPE REF TO cx_bcs.
+
+  CASE r_ucomm.
+
+    WHEN '&IC1'.        "Pick
+
+* Drill down email
+      READ TABLE gt_send_proc2 INTO gs_send_proc INDEX rs_selfield-tabindex.
+      CHECK sy-subrc IS INITIAL.
+
+      APPEND gs_send_proc TO lt_sndrecs.
+
+      TRY.
+          cl_sndrec_bcs=>display( lt_sndrecs ).
+        CATCH cx_bcs INTO lx_bcs.
+          MESSAGE ID lx_bcs->msgid TYPE 'S' NUMBER lx_bcs->msgno
+            WITH 'Display Document' space space space.
+      ENDTRY.
+
+  ENDCASE.
+
+ENDFORM.                    "user_command
